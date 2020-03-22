@@ -9,26 +9,6 @@ import os
 import sys
 import PyPDF2
 
-# TODO переписать все функции разбив их на классы по следующей схеме:
-# Класс отвечающий за конвертацию файлов
-# class Convert:
-#    функция конвертирования в JPG
-#    функция конвертирования в PDF
-#    функция разбивки PDF
-# Класс отвечающий за имена входящих и исходящих файлов
-# class Files:
-#    функция выдающая список входящих файлов
-#    функция выдающая список исходящих файлов
-# Класс отвечающий за отрисовку интерфейса
-# class MainWindow:
-#    функция отрисовки фрейма
-#    функция отрисовки кнопки
-#    функция отрисовки радиокнопки
-#    функция отрисовки чекбокса
-
-# TODO добавить комментарии на English
-
-
 root = tkinter.Tk()
 root.geometry('900x600+100-100')
 root.title('Конвертер изображений для ГИС ЖКХ. ' + __version__)
@@ -63,8 +43,6 @@ scale_split.pack(side='left')
 
 list_files = ''
 
-# TODO добавить проверку на неверный формат файла
-
 
 def ListFiles():
     global list_files
@@ -86,9 +64,6 @@ def SaveFileName():
     save_file_name = fd.asksaveasfilename(filetypes=[(f"Формат файла *{FORMAT_FILE[format_output_file.get()]}", f"*{FORMAT_FILE[format_output_file.get()]}")],
                                           defaultextension=f'{FORMAT_FILE[0]}')
     return save_file_name
-
-
-# TODO Переписать функцию, убрав лишние циклы
 
 
 def ConvertFile(var, split):
@@ -187,29 +162,6 @@ def split_pdf(filename, start=0, step=50):
         else:
             continue
         x += 1
-
-
-# Функция конвертирования в ПДФ
-"""     def convert_to_pdf(input_file, output_file):
-        i = 0
-        if i == 0:
-            with Image.open(input_file) as im:
-                im.save(output_file, 'PDF', save_all=True)
-        else:
-            with Image.open(input_file) as im:
-                im.save(output_file, append=True)
-        i += 1
-        return output_file """
-
-# Функция конвертирования в JPG
-"""     def convert_to_jpg(input_file, output_file):
-        im = Image.open(input_file)
-        size = im.size
-        new_size = (size[0]//2, size[1]//2)
-        img_resize = im.resize(size=new_size, resample=1, reducing_gap=3.0)
-        img = img_resize.convert(mode='1')
-        img.save(output_file, 'JPEG', optimize=True, dpi=(150, 150))
-        return output_file """
 
 
 def CloseWindow():
