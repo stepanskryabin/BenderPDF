@@ -52,17 +52,18 @@ check_button_true.pack()
 check_button_false.pack()
 
 settings_frame_split = tkinter.LabelFrame(
-    root, text='Настройки разбивки файла')
+    root, text='Разбить на')
 settings_frame_split.pack(side='left')
 
 # Задаём диапазаон страниц по которому далее будем разделять файл
-scale_split = tkinter.Scale(settings_frame_split, label='Диапазон страниц', from_=1, to=100, resolution=5, orient="horizontal")
+scale_split = tkinter.Scale(settings_frame_split, label='страниц',
+                            from_=1, to=100, resolution=5, orient="horizontal")
 scale_split.pack(side='left')
 
 
 list_files = ''
 
-#TODO добавить проверку на неверный формат файла
+# TODO добавить проверку на неверный формат файла
 
 
 def ListFiles():
@@ -150,12 +151,16 @@ def ConvertFile(var, split):
         pass
 
 # Функция добавляет номер последней страницы в диапазон
+
+
 def number_of_steps(num_page, page_start, page_step):
-     steps = list(range(page_start, num_page, page_step))
-     steps.append(num_page)
-     return steps
+    steps = list(range(page_start, num_page, page_step))
+    steps.append(num_page)
+    return steps
 
 # Функция разделяет ПДФ на файлы согласно заданного диапазона
+
+
 def split_pdf(filename, start=0, step=50):
     """
     Функция разделяет ПДФ на файлы согласно заданного диапазона
@@ -165,7 +170,8 @@ def split_pdf(filename, start=0, step=50):
     :return: возвращает несколько файлов по количеству диапазонов (имя генерируется по умолчанию).
     """
     pdf_input = PyPDF2.PdfFileReader(open(filename, 'rb'))
-    steps = number_of_steps(num_page=pdf_input.getNumPages(), page_start=start, page_step=step)
+    steps = number_of_steps(num_page=pdf_input.getNumPages(),
+                            page_start=start, page_step=step)
     new_outfile_path, new_outfile_format = os.path.splitext(filename)
     x = 1
     for i in steps:
@@ -173,13 +179,15 @@ def split_pdf(filename, start=0, step=50):
             pdf_output = PyPDF2.PdfFileWriter()
             for z in list(range(i, steps[x])):
                 pdf_output.addPage(pdf_input.getPage(z))
-            file_part = new_outfile_path + f"-page-{i}-{steps[x]}" + new_outfile_format
+            file_part = new_outfile_path + \
+                f"-page-{i}-{steps[x]}" + new_outfile_format
             pdf_output_stream = open(file_part, 'wb')
             pdf_output.write(pdf_output_stream)
             pdf_output_stream.close()
         else:
             continue
         x += 1
+
 
 # Функция конвертирования в ПДФ
 """     def convert_to_pdf(input_file, output_file):
