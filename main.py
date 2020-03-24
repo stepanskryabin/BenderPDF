@@ -3,7 +3,7 @@
 __version__ = 'Версия: 0.0.3'
 
 from tkinter import Tk
-from mainframe import MainFrame
+from mainframe.main import MainFrame
 
 # main window
 root = Tk()

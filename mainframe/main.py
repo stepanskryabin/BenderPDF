@@ -4,7 +4,7 @@
 from tkinter import Tk, filedialog, ttk, Label, Text, Scale, Frame, Radiobutton, IntVar, Button, Scrollbar, Menu, messagebox, scrolledtext
 # Импортируем имена индексов для текстового виджета
 from tkinter import END, INSERT, CURRENT
-from imageprocessing import ConvertFile
+from imageprocessing.main import ConvertFile
 
 
 # TODO переписать все функции разбив их на классы по следующей схеме:
@@ -39,7 +39,7 @@ class MainFrame:
             master, text='Перечень файлов:', textvariable='Перечень файлов:')
         self.text_label.grid(row=1, column=2, columnspan=6)
         #
-        self.text = Text(master, wrap='char', width=60, height=10)
+        self.text = Text(master, wrap='char', width=70, height=10)
         self.scroll = Scrollbar(
             master, orient='vertical', command=self.text.yview())
         self.text.config(yscrollcommand=self.scroll.set)
