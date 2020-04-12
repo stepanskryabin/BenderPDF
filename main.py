@@ -2,6 +2,8 @@
 # -*- coding:utf -8 -*-
 __version__ = 'Версия: 0.0.3'
 
+from os import path
+from os import remove
 
 from tkinter import Tk
 from tkinter import filedialog
@@ -18,13 +20,12 @@ from tkinter import Scrollbar
 from tkinter import Menu
 from tkinter import messagebox
 from tkinter import scrolledtext
-# Импортируем имена индексов для текстового виджета
 from tkinter import END
 from tkinter import INSERT
 from tkinter import CURRENT
+
 from PIL import Image
-from os import path
-from os import remove
+
 from PyPDF2 import PdfFileReader
 from PyPDF2 import PdfFileWriter
 
@@ -32,7 +33,6 @@ from PyPDF2 import PdfFileWriter
 class MainWindow:
 
     def __init__(self, master):
-        self.master = master
         self.FORMAT = {0: '.pdf', 1: '.jpg', 2: '.png'}
         self.SETTINGS_DPI = {0: 72, 1: 100, 2: 150}
         self.list_files = ''
@@ -47,12 +47,17 @@ class MainWindow:
         self.text_label.grid(row=1, column=2, columnspan=6)
         #
         self.text_box = Text(master, wrap='char', width=75, height=10)
-        self.scroll_text_box = Scrollbar(
+        self.vscroll_text_box = Scrollbar(
             master, orient='vertical', command=self.text_box.yview())
-        self.text_box.config(yscrollcommand=self.scroll_text_box.set)
+        self.hscroll_text_box = Scrollbar(
+            master, orient='horizontal', command=self.text_box.xview())
+        self.text_box.config(yscrollcommand=self.vscroll_text_box.set,
+                             xscrollcommand=self.hscroll_text_box.set)
         self.text_box.grid(row=2, column=2, rowspan=4, columnspan=6)
-        self.scroll_text_box.grid(
+        self.vscroll_text_box.grid(
             row=2, column=7, rowspan=4, sticky=('se', 'ne'))
+        self.hscroll_text_box.grid(
+            row=6, column=2, columnspan=6, sticky=('we', 'ne'))
         #
         #
         # Настройки формата файла
@@ -64,9 +69,9 @@ class MainWindow:
                                            variable=self.format_output_file, value=1)
         self.radiobutton_png = Radiobutton(master, text='Формат PNG',
                                            variable=self.format_output_file, value=2)
-        self.radiobutton_pdf.grid(row=6, column=1, columnspan=2, sticky='w')
-        self.radiobutton_jpg.grid(row=7, column=1, columnspan=2, sticky='w')
-        self.radiobutton_png.grid(row=8, column=1, columnspan=2, sticky='w')
+        self.radiobutton_pdf.grid(row=7, column=1, columnspan=2, sticky='w')
+        self.radiobutton_jpg.grid(row=8, column=1, columnspan=2, sticky='w')
+        self.radiobutton_png.grid(row=9, column=1, columnspan=2, sticky='w')
         #
         #
         # Настройки dpi
@@ -78,18 +83,19 @@ class MainWindow:
                                                variable=self.dpi, value=1)
         self.radiobutton_dpi_150 = Radiobutton(master, text='DPI 150',
                                                variable=self.dpi, value=2)
-        self.radiobutton_dpi_72.grid(row=6, column=3, columnspan=2, sticky='w')
-        self.radiobutton_dpi_100.grid(
+        self.radiobutton_dpi_72.grid(
             row=7, column=3, columnspan=2, sticky='w')
-        self.radiobutton_dpi_150.grid(
+        self.radiobutton_dpi_100.grid(
             row=8, column=3, columnspan=2, sticky='w')
+        self.radiobutton_dpi_150.grid(
+            row=9, column=3, columnspan=2, sticky='w')
         #
         #
         # Настройки разделения файла ПДФ (задается диапазон страниц)
         self.scale_split = Scale(master, label='Количество страниц', from_=0, to=100,
                                  resolution=5, orient="horizontal")
         self.scale_split.grid(
-            row=6, column=5, rowspan=2, sticky='we')
+            row=7, column=5, rowspan=2, sticky='we')
         #
         #
         # Настройка качества сжатия JPEG
@@ -97,7 +103,7 @@ class MainWindow:
                                    resolution=1, orient="horizontal")
         self.scale_quality.set(90)
         self.scale_quality.grid(
-            row=6, column=7, rowspan=2, sticky='we')
+            row=7, column=7, rowspan=2, sticky='we')
         #
         #
         # Задаем фрейм в котором будем размещать основные кнопки команд
@@ -113,16 +119,13 @@ class MainWindow:
                                  command=lambda x=True: ConvertFile().process(
                                      input_file=self.list_files, output_file=self.filename,
                                      format_file=self.FORMAT[self.format_output_file.get(
-                                     )],
-                                     dpi=self.SETTINGS_DPI[self.dpi.get()], split_step=self.scale_split.get()),
-                                 state='active', pady=5, padx=26)
+                                     )], dpi=self.SETTINGS_DPI[self.dpi.get()],
+                                     split_step=self.scale_split.get()), state='active', pady=5, padx=26)
         self.button_run.pack()
         self.button_close = Button(self.button_frame, text="Выход",
                                    command=self.closeWindow, state='active', pady=5, padx=36)
         self.button_close.pack()
         #
-        #
-        # Progressbar
         #
         # Меню программы
         self.menu = Menu(master)
@@ -161,31 +164,38 @@ class MainWindow:
     def savefileName(self):
         default = self.FORMAT[0]
         setting_format = self.FORMAT[self.format_output_file.get()]
-        self.filename = filedialog.asksaveasfilename(filetypes=[(f"Формат файла *{setting_format}", f"*{setting_format}")],
-                                                     defaultextension=f'{default}')
+        self.filename = filedialog.asksaveasfilename(filetypes=[(f"Формат файла *{setting_format}",
+                                                                 f"*{setting_format}")],
+                                                     defaultextension=default)
         return self.filename
 
 
 class ConvertFile:
     """
+
     Класс отвечает за конвертирование файлов изображений в форматы PDF, JPEG, PNG.
     Для файлов PDF есть возможность разделить на части с заданным количеством страниц.
+
     """
 
-    def __init__(self):
-        pass
-
     def numberSteps(self, num_page, page_start, page_step):
+        """
+
+        Функция создаёт список значений диапазонов на которые разделяется файл
+
+        """
         steps = list(range(page_start, num_page, page_step))
         steps.append(num_page)
         return steps
 
     def splitPdf(self, input_file, step):
         """
+
         Функция разделяет ПДФ на файлы согласно заданного диапазона.
         Дипазон задается в страницах. Функция возвращает несколько файлов, по количеству диапазонов (имя генерируется по умолчанию).
         \n input_file: имя файла, обязательный параметр, тип str.
         \n step: шаг диапазона в страницах, тип int.
+
         """
         pdf_input = PdfFileReader(open(input_file, 'rb'))
         steps = self.numberSteps(num_page=pdf_input.getNumPages(),
@@ -207,6 +217,14 @@ class ConvertFile:
             x += 1
 
     def to_image(self, in_file, out_file, dpi):
+        """
+
+        Функция конвертирует в формат JPEG или PNG.
+        \n in_file: полный путь к исходному файлу, тип str.
+        \n out_file: полный путь к результирующему файлу, тип str.
+        \n dpi: количество точек на дюйм (функции передаются значения из ряда: 72, 100, 150), тип int.
+
+        """
         im = Image.open(in_file)
         size = im.size
         new_size = (size[0] // 2, size[1] // 2)
@@ -216,17 +234,19 @@ class ConvertFile:
 
     def process(self, input_file, output_file, format_file, dpi, split_step=0):
         """
+
         Функция отвечает за запуск процесса конвертирования.
-        \n input_file: список файлов, тип str
-        \n output_file: имя результирующего файла, тип str
-        \n format_file: формат результирующего файла, тип str
-        \n dpi: настройка dpi
-        \n split_step: начальная страница
-        \n return: в директории сохраняются файлы
+        \n input_file: список файлов, тип str.
+        \n output_file: имя результирующего файла, тип str.
+        \n format_file: формат результирующего файла (функции передаются значения из ряда: PDF, JPG, PNG), тип str.
+        \n dpi: количество точек на дюйм (функции передаются значения из ряда: 72, 100, 150), тип int.
+        \n split_step: шаг разбивки ПДФ-файла (указывается в страницах), тип int.
+        \n return: в директории сохраняются файлы.
+
         """
         output_path, output_format = path.splitext(output_file)
         page = 0
-        #pb = MainWindow().progressbar(len(input_file))
+        # pb = MainWindow().progressbar(len(input_file))
         for i in input_file:
             if format_file == '.pdf':
                 input_path, input_format = path.splitext(i)
@@ -238,13 +258,15 @@ class ConvertFile:
                 elif page > 0:
                     im = Image.open(output_jpg)
                     im.save(output_file, 'PDF', append=True)
-                del(input_format)
                 remove(output_jpg)
-            elif format_file == '.jpg' or format_file == '.png':
+            elif format_file == '.jpg':
                 input_path, input_format = path.splitext(i)
                 output_image = input_path + format_file
                 self.to_image(i, output_image, dpi)
-                del(input_format)
+            elif format_file == '.png':
+                input_path, input_format = path.splitext(i)
+                output_image = input_path + format_file
+                self.to_image(i, output_image, dpi)
             else:
                 pass
             page += 1
@@ -252,7 +274,6 @@ class ConvertFile:
             self.splitPdf(output_file, step=split_step)
         else:
             pass
-        del(output_format)
 
 
 # main window
