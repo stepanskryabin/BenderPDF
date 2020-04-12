@@ -1,6 +1,6 @@
 #!/usr/bin/python
 # -*- coding:utf -8 -*-
-__version__ = 'Версия: 0.0.3'
+__version__ = '0.0.3'
 
 from os import path
 from os import remove
@@ -13,8 +13,10 @@ from tkinter import Text
 from tkinter import Scale
 from tkinter import Frame
 from tkinter import Radiobutton
+from tkinter import Checkbutton
 from tkinter import IntVar
 from tkinter import StringVar
+from tkinter import BooleanVar
 from tkinter import Button
 from tkinter import Scrollbar
 from tkinter import Menu
@@ -64,11 +66,11 @@ class MainWindow:
         self.format_output_file = IntVar()
         self.format_output_file.set(0)
         self.radiobutton_pdf = Radiobutton(master, text='Формат PDF',
-                                           variable=self.format_output_file, value=0)
+                                           variable=self.format_output_file, value=0, command=self.buttonShutdown)
         self.radiobutton_jpg = Radiobutton(master, text='Формат JPG',
-                                           variable=self.format_output_file, value=1)
+                                           variable=self.format_output_file, value=1, command=self.buttonShutdown)
         self.radiobutton_png = Radiobutton(master, text='Формат PNG',
-                                           variable=self.format_output_file, value=2)
+                                           variable=self.format_output_file, value=2, command=self.buttonShutdown)
         self.radiobutton_pdf.grid(row=7, column=1, columnspan=2, sticky='w')
         self.radiobutton_jpg.grid(row=8, column=1, columnspan=2, sticky='w')
         self.radiobutton_png.grid(row=9, column=1, columnspan=2, sticky='w')
@@ -99,11 +101,21 @@ class MainWindow:
         #
         #
         # Настройка качества сжатия JPEG
-        self.scale_quality = Scale(master, label='Качество', from_=1, to=100,
-                                   resolution=1, orient="horizontal")
+        self.scale_quality = Scale(master, label='Качество сжатия', from_=1, to=100,
+                                   resolution=1, orient="horizontal", state='disable')
         self.scale_quality.set(90)
         self.scale_quality.grid(
             row=7, column=7, rowspan=2, sticky='we')
+        #
+        #
+        # Чекбокс настройки оптимизации качества
+        self.optimize_image = BooleanVar()
+        self.optimize_image.set(True)
+        self.checkbutton_optimize = Checkbutton(
+            master, text='Оптимизировать качество файла', variable=self.optimize_image, onvalue=True, offvalue=False)
+        self.checkbutton_optimize.grid(row=9, column=7, sticky='w')
+        self.checkbutton_optimize.bind(
+            '<Button>', lambda event: self.changeState(event))
         #
         #
         # Задаем фрейм в котором будем размещать основные кнопки команд
@@ -119,7 +131,7 @@ class MainWindow:
                                  command=lambda x=True: ConvertFile().process(
                                      input_file=self.list_files, output_file=self.filename,
                                      format_file=self.FORMAT[self.format_output_file.get(
-                                     )], dpi=self.SETTINGS_DPI[self.dpi.get()],
+                                     )], dpi=self.SETTINGS_DPI[self.dpi.get()], optimize=self.optimize_image.get(),
                                      split_step=self.scale_split.get()), state='active', pady=5, padx=26)
         self.button_run.pack()
         self.button_close = Button(self.button_frame, text="Выход",
@@ -136,8 +148,18 @@ class MainWindow:
         self.sub_menu2 = Menu(self.menu)
         self.menu.add_cascade(label='Информация', menu=self.sub_menu2)
         self.sub_menu2.add_command(label='О программе', command=self.aboutInfo)
-        self.sub_menu2.add_command(label='Автор', command=self.aboutInfo)
-        self.sub_menu2.add_command(label='Лицензия', command=self.aboutInfo)
+
+    def changeState(self, event):
+        if self.optimize_image.get() == False:
+            self.scale_quality.config(state='disable')
+        else:
+            self.scale_quality.config(state='active')
+
+    def buttonShutdown(self):
+        if self.format_output_file.get() == 1 or self.format_output_file.get() == 2:
+            self.button_save.config(state='disable')
+        else:
+            self.button_save.config(state='active')
 
     def progressbar(self, lenght, value):
         pbar = ttk.Progressbar(
@@ -146,7 +168,8 @@ class MainWindow:
 
     def aboutInfo(self):
         messagebox.showinfo(
-            title='О программе', message='BenderPDF - конвертер файлов для сайта ГИС ЖКХ')
+            title='О программе', message='BenderPDF - конвертер файлов для сайта ГИС ЖКХ.\n' +
+            'Версия: ' + __version__ + '\nРаспространяется по условиям лицензии GPLv3 https://www.gnu.org/licenses/gpl-3.0.html')
 
     def closeWindow(self):
         root.quit()
@@ -209,30 +232,35 @@ class ConvertFile:
                     pdf_output.addPage(pdf_input.getPage(z))
                 file_part = new_outfile_path + \
                     f"-page-{i}-{steps[x]}" + new_outfile_format
-                pdf_output_stream = open(file_part, 'wb')
-                pdf_output.write(pdf_output_stream)
-                pdf_output_stream.close()
+                with open(file_part, 'wb') as pdf_output_stream:
+                    pdf_output.write(pdf_output_stream)
             else:
                 continue
             x += 1
 
-    def to_image(self, in_file, out_file, dpi):
+    def to_image(self, in_file, optimize, dpi, format_file='JPEG'):
         """
 
         Функция конвертирует в формат JPEG или PNG.
         \n in_file: полный путь к исходному файлу, тип str.
-        \n out_file: полный путь к результирующему файлу, тип str.
+        \n optimize: функция оптимизации качества результирующего изображения, тип bool.
         \n dpi: количество точек на дюйм (функции передаются значения из ряда: 72, 100, 150), тип int.
+        \n format_file: формат результирующего файла (функции передаются значения из ряда: JPG, PNG), тип str.
+        \n return: функция преобразует в файл с заданным форматом и выдаёт полный путь к этому файлу.
 
         """
+        print('optimize=', optimize)
+        input_path, input_format = path.splitext(in_file)
+        out_file = input_path + '.' + format_file
         im = Image.open(in_file)
         size = im.size
         new_size = (size[0] // 2, size[1] // 2)
         img_resize = im.resize(size=new_size, resample=1, reducing_gap=3.0)
         img = img_resize.convert(mode='1')
-        img.save(out_file, optimize=True, dpi=(dpi, dpi))
+        img.save(out_file, format_file, optimize=optimize, dpi=(dpi, dpi))
+        return out_file
 
-    def process(self, input_file, output_file, format_file, dpi, split_step=0):
+    def process(self, input_file, output_file, format_file, dpi, optimize, split_step=0):
         """
 
         Функция отвечает за запуск процесса конвертирования.
@@ -249,9 +277,9 @@ class ConvertFile:
         # pb = MainWindow().progressbar(len(input_file))
         for i in input_file:
             if format_file == '.pdf':
-                input_path, input_format = path.splitext(i)
-                output_jpg = input_path + '.jpg'
-                self.to_image(i, output_jpg, dpi)
+                """ конвертируем в формат JPEG """
+                output_jpg = self.to_image(i, optimize, dpi, 'JPEG')
+                """ JPEG добавляем в PDF-файл, выбираем параметры функции добавления основываясь на номере страницы """
                 if page == 0:
                     im = Image.open(output_jpg)
                     im.save(output_file, 'PDF', save_all=True)
@@ -260,13 +288,9 @@ class ConvertFile:
                     im.save(output_file, 'PDF', append=True)
                 remove(output_jpg)
             elif format_file == '.jpg':
-                input_path, input_format = path.splitext(i)
-                output_image = input_path + format_file
-                self.to_image(i, output_image, dpi)
+                self.to_image(i, optimize, dpi, 'JPEG')
             elif format_file == '.png':
-                input_path, input_format = path.splitext(i)
-                output_image = input_path + format_file
-                self.to_image(i, output_image, dpi)
+                self.to_image(i, optimize, dpi, 'PNG')
             else:
                 pass
             page += 1
@@ -280,6 +304,6 @@ class ConvertFile:
 root = Tk()
 root.geometry('725x420+140-140')
 # root.iconbitmap('bender.ico')
-root.title('Конвертер изображений для ГИС ЖКХ. ' + __version__)
+root.title('Конвертер изображений для ГИС ЖКХ')
 app = MainWindow(root)
 root.mainloop()
