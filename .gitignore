@@ -133,3 +133,8 @@ dmypy.json
 
 #VS code
 .vscode
+*.code-workspace
+
+# TCL progect
+*.tcl.bak1
+*.tcl.bak2
