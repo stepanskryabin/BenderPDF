@@ -1,10 +1,10 @@
 #!/usr/bin/python
 # -*- coding:utf -8 -*-
-__version__ = '0.0.4'
+__version__ = '0.0.5'
 
 from os import path
 from os import remove
-import threading
+from threading import Thread
 
 from tkinter import Tk
 from tkinter import filedialog
@@ -27,10 +27,17 @@ from tkinter import scrolledtext
 from tkinter import END
 from tkinter import INSERT
 from tkinter import CURRENT
+
 from PIL import Image
 
 from PyPDF2 import PdfFileReader
 from PyPDF2 import PdfFileWriter
+
+from numpy import arange
+
+
+ABOUT = 'BenderPDF - конвертер файлов для сайта ГИС ЖКХ.\n' + 'Версия: ' + __version__ + \
+    '\nРаспространяется по условиям лицензии GPLv3 https: // www.gnu.org/licenses/gpl-3.0.html'
 
 
 class MainWindow:
@@ -41,15 +48,8 @@ class MainWindow:
         self.list_files = ''
         self.filename = ''
         self.lenght_list_files = ''
-
         #
-        # self.command_label = Frame(master)
-        # self.command_label.grid(row=1, column=1)
-        #
-        # self.text_label = Frame(master)
-        # self.text_label.grid(row=1, column=2, columnspan=6) """
-        #
-        self.text_box = Text(master, wrap='char', width=75, height=10)
+        self.text_box = Text(master, wrap='char', width=75, height=16)
         self.vscroll_text_box = Scrollbar(
             master, orient='vertical', command=self.text_box.yview())
         self.hscroll_text_box = Scrollbar(
@@ -67,13 +67,13 @@ class MainWindow:
         self.labelframe_format = LabelFrame(
             master, text="Формат файла")
         self.labelframe_format.grid(
-            row=7, column=1, columnspan=1, rowspan=2, sticky='nw ne')
+            row=7, column=1, columnspan=1, rowspan=3, sticky='wens')
         self.format_output_file = IntVar()
         self.format_output_file.set(0)
         self.radiobutton_pdf = Radiobutton(self.labelframe_format, text='Формат PDF',
-                                           variable=self.format_output_file, value=0, command=self.buttonShutdown)
+                                           variable=self.format_output_file, value=0, command=self.shutdown_button)
         self.radiobutton_jpg = Radiobutton(self.labelframe_format, text='Формат JPEG',
-                                           variable=self.format_output_file, value=1, command=self.buttonShutdown)
+                                           variable=self.format_output_file, value=1, command=self.shutdown_button)
         self.radiobutton_pdf.pack(fill='x')
         self.radiobutton_jpg.pack(fill='x')
         #
@@ -81,7 +81,7 @@ class MainWindow:
         # Задаём фрейм в котором будем размещать настройки разделения
         self.labelframe_split = LabelFrame(master, text="Развибка на страницы")
         self.labelframe_split.grid(
-            row=7, column=2, columnspan=2, rowspan=3, sticky='nw ne')
+            row=7, column=2, columnspan=2, rowspan=3, sticky='wens')
         self.scale_split = Scale(self.labelframe_split, from_=0, to=100,
                                  resolution=5, orient="horizontal")
         self.scale_split.pack(fill='both')
@@ -90,7 +90,7 @@ class MainWindow:
         # Задаём фрейм в котором будем размещать настройки качества файла
         self.labelframe_dpi = LabelFrame(master, text="Настройки качества")
         self.labelframe_dpi.grid(
-            row=7, column=4, columnspan=2, rowspan=3, sticky='nw ne')
+            row=7, column=4, columnspan=2, rowspan=3, sticky='wens')
         self.dpi = IntVar()
         self.dpi.set(2)
         self.radiobutton_dpi_72 = Radiobutton(self.labelframe_dpi, text='Среднее',
@@ -111,7 +111,7 @@ class MainWindow:
             row=7, column=6, columnspan=2, rowspan=3, sticky='nw ne')
         self.scale_quality = Scale(self.labelframe_quality, label='Маленький                          Большой', from_=1, to=100,
                                    resolution=1, orient="horizontal", state='active')
-        self.scale_quality.set(90)
+        self.scale_quality.set(100)
         self.scale_quality.pack(fill='both')
         #
         #
@@ -122,7 +122,7 @@ class MainWindow:
             self.labelframe_quality, text='Автоматически', variable=self.optimize_image, onvalue=True, offvalue=False)
         self.checkbutton_optimize.pack()
         self.checkbutton_optimize.bind(
-            '<Button>', lambda event: self.changeState(event))
+            '<Button>', lambda event: self.change_state(event))
         #
         #
         # Задаем фрейм в котором будем размещать основные кнопки команд
@@ -139,8 +139,15 @@ class MainWindow:
                                      input_file=self.list_files, output_file=self.filename,
                                      format_file=self.FORMAT[self.format_output_file.get(
                                      )], dpi=self.SETTINGS_DPI[self.dpi.get()], optimize=self.optimize_image.get(),
-                                     split_step=self.scale_split.get()), state='active', pady=5, padx=26)
+                                     quality=self.scale_quality.get(), split_step=self.scale_split.get()),
+                                 state='active', pady=5, padx=26)
         self.button_run.pack()
+        #
+        #
+        # Progressbar
+        self.pbar = ttk.Progressbar(
+            master, orient='horizontal', mode='determinate', length=100, maximum=100)
+        self.pbar.grid(row=10, column=1, columnspan=7, sticky='wens')
         #
         #
         # Меню программы
@@ -148,50 +155,42 @@ class MainWindow:
         master.config(menu=self.menu)
         self.sub_menu1 = Menu(self.menu)
         self.menu.add_cascade(label='Файл', menu=self.sub_menu1)
-        self.sub_menu1.add_command(label='Выход', command=self.closeWindow)
+        self.sub_menu1.add_command(label='Выход', command=self.closed_window)
         self.sub_menu2 = Menu(self.menu)
         self.menu.add_cascade(label='Информация', menu=self.sub_menu2)
-        self.sub_menu2.add_command(label='О программе', command=self.aboutInfo)
-        #
-        #
-        # Progressbar
-        self.pbar = ttk.Progressbar(
-            master, orient='horizontal', mode='determinate', length=100)
-        self.pbar.grid(row=10, column=1, columnspan=9, sticky='we')
+        self.sub_menu2.add_command(
+            label='О программе', command=self.show_about)
 
-    def changeState(self, event):
+    def change_state(self, event):
         if self.optimize_image.get() == False:
             self.scale_quality.config(state='disable')
         else:
             self.scale_quality.config(state='active')
 
-    def buttonShutdown(self):
+    def shutdown_button(self):
         if self.format_output_file.get() == 1:
             self.button_save.config(state='disable')
         else:
             self.button_save.config(state='active')
 
-    def config_progressbar(self, value):
-        step = 100 // self.lenght_list_files
-        step_range = range(0, 100, step)
-        if value == 'start':
-            self.pbar['maximum'] = 100
-            self.pbar.start(5)
-            self.pbar.step(step)
-        elif value == 'stop':
-            self.pbar.stop()
-        # self.pbar['value'] = step_range[value] + step
+    def update_progressbar(self, page):
+        step = 100 / self.lenght_list_files
+        step_range = arange(0, 100, step)
+        self.pbar['value'] = step_range[page] + step
+        root.update()
 
-    def aboutInfo(self):
+    def show_about(self):
         messagebox.showinfo(
-            title='О программе', message='BenderPDF - конвертер файлов для сайта ГИС ЖКХ.\n' +
-            'Версия: ' + __version__ + '\nРаспространяется по условиям лицензии GPLv3 https://www.gnu.org/licenses/gpl-3.0.html')
+            title='О программе', message=ABOUT)
 
-    def closeWindow(self):
+    def show_error(self, message):
+        messagebox.showerror(title='ОШИБКА', message=message)
+
+    def closed_window(self):
         root.quit()
 
-    # Функция привязана к кнопке "Добавить файлы". Результат работы функции - список файлов, который отображается в поле text_box
     def listFiles(self):
+        """ Функция привязана к кнопке "Добавить файлы". Результат работы функции - список файлов, который отображается в поле text_box """
         self.list_files = filedialog.askopenfilenames()
         self.lenght_list_files = len(self.list_files)
         self.text_box.delete(1.0, END)
@@ -200,8 +199,8 @@ class MainWindow:
             self.text_box.insert(END, '\n')
         return self.list_files
 
-    # Функция привязана к кнопке "Сохранить файл". Результат работы функции - полный путь к выходному файлу
     def savefileName(self):
+        """ Функция привязана к кнопке "Сохранить файл". Результат работы функции - полный путь к выходному файлу """
         default = self.FORMAT[0]
         setting_format = self.FORMAT[self.format_output_file.get()]
         self.filename = filedialog.asksaveasfilename(filetypes=[(f"Формат файла *{setting_format}",
@@ -255,7 +254,7 @@ class ConvertFile:
                 continue
             x += 1
 
-    def to_image(self, in_file, optimize, dpi, format_file='JPEG'):
+    def to_image(self, in_file, optimize, quality, dpi, format_file='JPEG'):
         """
 
         Функция конвертирует в формат JPEG или PNG.
@@ -277,7 +276,7 @@ class ConvertFile:
                  dpi=(dpi, dpi), progressive=True)
         return out_file
 
-    def process(self, input_file, output_file, format_file, dpi, optimize, split_step=0):
+    def process(self, input_file, output_file, format_file, dpi, optimize, quality, split_step=0):
         """
 
         Функция отвечает за запуск процесса конвертирования.
@@ -291,11 +290,12 @@ class ConvertFile:
         """
         output_path, output_format = path.splitext(output_file)
         page = 0
-        threading.Thread(target=app.config_progressbar('start')).start()
         for i in input_file:
+            """ Запускаем обновление прогрессбара в отдельном процессе """
+            Thread(target=app.update_progressbar(page)).start()
             if format_file == '.pdf':
-                """ конвертируем в формат JPEG """
-                output_jpg = self.to_image(i, optimize, dpi, 'JPEG')
+                """ сначала конвертируем в формат JPEG """
+                output_jpg = self.to_image(i, optimize, quality, dpi, 'JPEG')
                 """ JPEG добавляем в PDF-файл, выбираем параметры функции добавления основываясь на номере страницы """
                 if page == True:
                     im = Image.open(output_jpg)
@@ -305,21 +305,20 @@ class ConvertFile:
                     im.save(output_file, 'PDF', append=True)
                 remove(output_jpg)
             elif format_file == '.jpg':
-                self.to_image(i, optimize, dpi, 'JPEG')
+                self.to_image(i, optimize, quality, dpi, 'JPEG')
             else:
                 pass
             page += 1
-        if split_step > 0:
+        if format_file == '.pdf' and split_step > 0:
             self.splitPdf(output_file, step=split_step)
         else:
-            pass
-        app.config_progressbar('stop')
+            MainWindow.show_error('Конвертирование невозможно!')
 
 
 # main window
 if __name__ == "__main__":
     root = Tk()
-    root.geometry('725x420+140-140')
+    root.geometry('722x410+140-140')
     root.resizable(0, 0)
     # root.iconbitmap('./bender.ico')
     root.title('Конвертер изображений для ГИС ЖКХ')
