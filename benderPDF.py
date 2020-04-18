@@ -1,14 +1,16 @@
 #!/usr/bin/python
 # -*- coding:utf -8 -*-
-__version__ = '0.0.3'
+__version__ = '0.0.4'
 
 from os import path
 from os import remove
+import threading
 
 from tkinter import Tk
 from tkinter import filedialog
 from tkinter import ttk
 from tkinter import Label
+from tkinter import LabelFrame
 from tkinter import Text
 from tkinter import Scale
 from tkinter import Frame
@@ -25,7 +27,6 @@ from tkinter import scrolledtext
 from tkinter import END
 from tkinter import INSERT
 from tkinter import CURRENT
-
 from PIL import Image
 
 from PyPDF2 import PdfFileReader
@@ -35,18 +36,18 @@ from PyPDF2 import PdfFileWriter
 class MainWindow:
 
     def __init__(self, master):
-        self.FORMAT = {0: '.pdf', 1: '.jpg', 2: '.png'}
+        self.FORMAT = {0: '.pdf', 1: '.jpg'}
         self.SETTINGS_DPI = {0: 72, 1: 100, 2: 150}
         self.list_files = ''
         self.filename = ''
+        self.lenght_list_files = ''
+
         #
-        self.command_label = Label(
-            master, text='Команды:', textvariable='Команды:')
-        self.command_label.grid(row=1, column=1)
+        # self.command_label = Frame(master)
+        # self.command_label.grid(row=1, column=1)
         #
-        self.text_label = Label(
-            master, text='Перечень файлов:', textvariable='Перечень файлов:')
-        self.text_label.grid(row=1, column=2, columnspan=6)
+        # self.text_label = Frame(master)
+        # self.text_label.grid(row=1, column=2, columnspan=6) """
         #
         self.text_box = Text(master, wrap='char', width=75, height=10)
         self.vscroll_text_box = Scrollbar(
@@ -63,57 +64,63 @@ class MainWindow:
         #
         #
         # Настройки формата файла
+        self.labelframe_format = LabelFrame(
+            master, text="Формат файла")
+        self.labelframe_format.grid(
+            row=7, column=1, columnspan=1, rowspan=2, sticky='nw ne')
         self.format_output_file = IntVar()
         self.format_output_file.set(0)
-        self.radiobutton_pdf = Radiobutton(master, text='Формат PDF',
+        self.radiobutton_pdf = Radiobutton(self.labelframe_format, text='Формат PDF',
                                            variable=self.format_output_file, value=0, command=self.buttonShutdown)
-        self.radiobutton_jpg = Radiobutton(master, text='Формат JPG',
+        self.radiobutton_jpg = Radiobutton(self.labelframe_format, text='Формат JPEG',
                                            variable=self.format_output_file, value=1, command=self.buttonShutdown)
-        self.radiobutton_png = Radiobutton(master, text='Формат PNG',
-                                           variable=self.format_output_file, value=2, command=self.buttonShutdown)
-        self.radiobutton_pdf.grid(row=7, column=1, columnspan=2, sticky='w')
-        self.radiobutton_jpg.grid(row=8, column=1, columnspan=2, sticky='w')
-        self.radiobutton_png.grid(row=9, column=1, columnspan=2, sticky='w')
+        self.radiobutton_pdf.pack(fill='x')
+        self.radiobutton_jpg.pack(fill='x')
         #
         #
-        # Настройки dpi
+        # Задаём фрейм в котором будем размещать настройки разделения
+        self.labelframe_split = LabelFrame(master, text="Развибка на страницы")
+        self.labelframe_split.grid(
+            row=7, column=2, columnspan=2, rowspan=3, sticky='nw ne')
+        self.scale_split = Scale(self.labelframe_split, from_=0, to=100,
+                                 resolution=5, orient="horizontal")
+        self.scale_split.pack(fill='both')
+        #
+        #
+        # Задаём фрейм в котором будем размещать настройки качества файла
+        self.labelframe_dpi = LabelFrame(master, text="Настройки качества")
+        self.labelframe_dpi.grid(
+            row=7, column=4, columnspan=2, rowspan=3, sticky='nw ne')
         self.dpi = IntVar()
         self.dpi.set(2)
-        self.radiobutton_dpi_72 = Radiobutton(master, text='DPI 72',
+        self.radiobutton_dpi_72 = Radiobutton(self.labelframe_dpi, text='Среднее',
                                               variable=self.dpi, value=0)
-        self.radiobutton_dpi_100 = Radiobutton(master, text='DPI 100',
+        self.radiobutton_dpi_100 = Radiobutton(self.labelframe_dpi, text='Хорошее',
                                                variable=self.dpi, value=1)
-        self.radiobutton_dpi_150 = Radiobutton(master, text='DPI 150',
+        self.radiobutton_dpi_150 = Radiobutton(self.labelframe_dpi, text='Отличное',
                                                variable=self.dpi, value=2)
-        self.radiobutton_dpi_72.grid(
-            row=7, column=3, columnspan=2, sticky='w')
-        self.radiobutton_dpi_100.grid(
-            row=8, column=3, columnspan=2, sticky='w')
-        self.radiobutton_dpi_150.grid(
-            row=9, column=3, columnspan=2, sticky='w')
+        self.radiobutton_dpi_72.pack(fill='both')
+        self.radiobutton_dpi_100.pack(fill='both')
+        self.radiobutton_dpi_150.pack(fill='both')
         #
         #
-        # Настройки разделения файла ПДФ (задается диапазон страниц)
-        self.scale_split = Scale(master, label='Количество страниц', from_=0, to=100,
-                                 resolution=5, orient="horizontal")
-        self.scale_split.grid(
-            row=7, column=5, rowspan=2, sticky='we')
-        #
-        #
-        # Настройка качества сжатия JPEG
-        self.scale_quality = Scale(master, label='Качество сжатия', from_=1, to=100,
-                                   resolution=1, orient="horizontal", state='disable')
+        # Фрейм с настройками качества сжатия JPEG
+        self.labelframe_quality = LabelFrame(
+            master, text="Настройка сжатия файла")
+        self.labelframe_quality.grid(
+            row=7, column=6, columnspan=2, rowspan=3, sticky='nw ne')
+        self.scale_quality = Scale(self.labelframe_quality, label='Маленький                          Большой', from_=1, to=100,
+                                   resolution=1, orient="horizontal", state='active')
         self.scale_quality.set(90)
-        self.scale_quality.grid(
-            row=7, column=7, rowspan=2, sticky='we')
+        self.scale_quality.pack(fill='both')
         #
         #
         # Чекбокс настройки оптимизации качества
         self.optimize_image = BooleanVar()
-        self.optimize_image.set(True)
+        self.optimize_image.set(False)
         self.checkbutton_optimize = Checkbutton(
-            master, text='Оптимизировать качество файла', variable=self.optimize_image, onvalue=True, offvalue=False)
-        self.checkbutton_optimize.grid(row=9, column=7, sticky='w')
+            self.labelframe_quality, text='Автоматически', variable=self.optimize_image, onvalue=True, offvalue=False)
+        self.checkbutton_optimize.pack()
         self.checkbutton_optimize.bind(
             '<Button>', lambda event: self.changeState(event))
         #
@@ -134,9 +141,6 @@ class MainWindow:
                                      )], dpi=self.SETTINGS_DPI[self.dpi.get()], optimize=self.optimize_image.get(),
                                      split_step=self.scale_split.get()), state='active', pady=5, padx=26)
         self.button_run.pack()
-        self.button_close = Button(self.button_frame, text="Выход",
-                                   command=self.closeWindow, state='active', pady=5, padx=36)
-        self.button_close.pack()
         #
         #
         # Меню программы
@@ -148,6 +152,12 @@ class MainWindow:
         self.sub_menu2 = Menu(self.menu)
         self.menu.add_cascade(label='Информация', menu=self.sub_menu2)
         self.sub_menu2.add_command(label='О программе', command=self.aboutInfo)
+        #
+        #
+        # Progressbar
+        self.pbar = ttk.Progressbar(
+            master, orient='horizontal', mode='determinate', length=100)
+        self.pbar.grid(row=10, column=1, columnspan=9, sticky='we')
 
     def changeState(self, event):
         if self.optimize_image.get() == False:
@@ -156,15 +166,21 @@ class MainWindow:
             self.scale_quality.config(state='active')
 
     def buttonShutdown(self):
-        if self.format_output_file.get() == 1 or self.format_output_file.get() == 2:
+        if self.format_output_file.get() == 1:
             self.button_save.config(state='disable')
         else:
             self.button_save.config(state='active')
 
-    def progressbar(self, lenght, value):
-        pbar = ttk.Progressbar(
-            self.master, orient='horizontal', mode='determinate', length=lenght)
-        self.pbar.grid(row=9, column=1, columnspan=9, sticky='we')
+    def config_progressbar(self, value):
+        step = 100 // self.lenght_list_files
+        step_range = range(0, 100, step)
+        if value == 'start':
+            self.pbar['maximum'] = 100
+            self.pbar.start(5)
+            self.pbar.step(step)
+        elif value == 'stop':
+            self.pbar.stop()
+        # self.pbar['value'] = step_range[value] + step
 
     def aboutInfo(self):
         messagebox.showinfo(
@@ -177,6 +193,7 @@ class MainWindow:
     # Функция привязана к кнопке "Добавить файлы". Результат работы функции - список файлов, который отображается в поле text_box
     def listFiles(self):
         self.list_files = filedialog.askopenfilenames()
+        self.lenght_list_files = len(self.list_files)
         self.text_box.delete(1.0, END)
         for i in self.list_files:
             self.text_box.insert(END, i)
@@ -249,7 +266,6 @@ class ConvertFile:
         \n return: функция преобразует в файл с заданным форматом и выдаёт полный путь к этому файлу.
 
         """
-        print('optimize=', optimize)
         input_path, input_format = path.splitext(in_file)
         out_file = input_path + '.' + format_file
         im = Image.open(in_file)
@@ -257,7 +273,8 @@ class ConvertFile:
         new_size = (size[0] // 2, size[1] // 2)
         img_resize = im.resize(size=new_size, resample=1, reducing_gap=3.0)
         img = img_resize.convert(mode='1')
-        img.save(out_file, format_file, optimize=optimize, dpi=(dpi, dpi))
+        img.save(out_file, format_file, quality=quality, optimize=optimize,
+                 dpi=(dpi, dpi), progressive=True)
         return out_file
 
     def process(self, input_file, output_file, format_file, dpi, optimize, split_step=0):
@@ -274,13 +291,13 @@ class ConvertFile:
         """
         output_path, output_format = path.splitext(output_file)
         page = 0
-        # pb = MainWindow().progressbar(len(input_file))
+        threading.Thread(target=app.config_progressbar('start')).start()
         for i in input_file:
             if format_file == '.pdf':
                 """ конвертируем в формат JPEG """
                 output_jpg = self.to_image(i, optimize, dpi, 'JPEG')
                 """ JPEG добавляем в PDF-файл, выбираем параметры функции добавления основываясь на номере страницы """
-                if page == 0:
+                if page == True:
                     im = Image.open(output_jpg)
                     im.save(output_file, 'PDF', save_all=True)
                 elif page > 0:
@@ -289,8 +306,6 @@ class ConvertFile:
                 remove(output_jpg)
             elif format_file == '.jpg':
                 self.to_image(i, optimize, dpi, 'JPEG')
-            elif format_file == '.png':
-                self.to_image(i, optimize, dpi, 'PNG')
             else:
                 pass
             page += 1
@@ -298,12 +313,15 @@ class ConvertFile:
             self.splitPdf(output_file, step=split_step)
         else:
             pass
+        app.config_progressbar('stop')
 
 
 # main window
-root = Tk()
-root.geometry('725x420+140-140')
-# root.iconbitmap('bender.ico')
-root.title('Конвертер изображений для ГИС ЖКХ')
-app = MainWindow(root)
-root.mainloop()
+if __name__ == "__main__":
+    root = Tk()
+    root.geometry('725x420+140-140')
+    root.resizable(0, 0)
+    # root.iconbitmap('./bender.ico')
+    root.title('Конвертер изображений для ГИС ЖКХ')
+    app = MainWindow(root)
+    root.mainloop()
