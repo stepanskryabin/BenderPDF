@@ -1,6 +1,5 @@
 #!/usr/bin/python
 # -*- coding:utf -8 -*-
-__version__ = '0.0.5'
 
 from os import path
 from os import remove
@@ -9,7 +8,6 @@ from threading import Thread
 from tkinter import Tk
 from tkinter import filedialog
 from tkinter import ttk
-from tkinter import Label
 from tkinter import LabelFrame
 from tkinter import Text
 from tkinter import Scale
@@ -17,25 +15,20 @@ from tkinter import Frame
 from tkinter import Radiobutton
 from tkinter import Checkbutton
 from tkinter import IntVar
-from tkinter import StringVar
 from tkinter import BooleanVar
 from tkinter import Button
 from tkinter import Scrollbar
 from tkinter import Menu
 from tkinter import messagebox
-from tkinter import scrolledtext
 from tkinter import END
-from tkinter import INSERT
-from tkinter import CURRENT
+
 
 from PIL import Image
 
 from PyPDF2 import PdfFileReader
 from PyPDF2 import PdfFileWriter
 
-from numpy import arange
-
-
+__version__ = '0.0.6'
 ABOUT = 'BenderPDF - конвертер файлов для сайта ГИС ЖКХ.\n' + 'Версия: ' + __version__ + \
     '\nРаспространяется по условиям лицензии GPLv3 https: // www.gnu.org/licenses/gpl-3.0.html'
 
@@ -45,22 +38,34 @@ class MainWindow:
     def __init__(self, master):
         self.FORMAT = {0: '.pdf', 1: '.jpg'}
         self.SETTINGS_DPI = {0: 72, 1: 100, 2: 150}
+        self.SETTINGS_COLOR = {0: '1', 1: 'RGB'}
         self.list_files = ''
         self.filename = ''
         self.lenght_list_files = ''
-        #
-        self.text_box = Text(master, wrap='char', width=75, height=16)
+        ####################################################################################################
+        # A1 # 1      # 2       # 3       # 4       # 5       # 6       # 7       # 8       # 9       # 10 #
+        # A2 # BUTTON # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # VSCROLL # 10 #
+        # A3 # BUTTON # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # VSCROLL # 10 #
+        # A4 # BUTTON # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # VSCROLL # 10 #
+        # A5 # BUTTON # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # TEXT    # VSCROLL # 10 #
+        # A6 # 1      # HSCROLL # HSCROLL # HSCROLL # HSCROLL # HSCROLL # HSCROLL # HSCROLL # HSCROLL # 10 #
+        # A7 # FORMAT # SPLIT   # SPLIT   # DPI     # DPI     # COLOR   # COLOR   # QUALITY # QUALITY # 10 #
+        # A8 # FORMAT # SPLIT   # SPLIT   # DPI     # DPI     # COLOR   # COLOR   # QUALITY # QUALITY # 10 #
+        # A9 # FORMAT # SPLIT   # SPLIT   # DPI     # DPI     # COLOR   # COLOR   # QUALITY # QUALITY # 10 #
+        # A10# P_BAR  # P_BAR   # P_BAR   # P_BAR   # P_BAR   # P_BAR   # P_BAR   # P_BAR   # P_BAR   # 10 #
+        ####################################################################################################
+        self.text_box = Text(master, wrap='char', width=80, height=16)
         self.vscroll_text_box = Scrollbar(
             master, orient='vertical', command=self.text_box.yview())
         self.hscroll_text_box = Scrollbar(
             master, orient='horizontal', command=self.text_box.xview())
         self.text_box.config(yscrollcommand=self.vscroll_text_box.set,
                              xscrollcommand=self.hscroll_text_box.set)
-        self.text_box.grid(row=2, column=2, rowspan=4, columnspan=6)
+        self.text_box.grid(row=2, column=2, rowspan=4, columnspan=7)
         self.vscroll_text_box.grid(
-            row=2, column=7, rowspan=4, sticky=('se', 'ne'))
+            row=2, column=9, rowspan=4, sticky=('se', 'ne'))
         self.hscroll_text_box.grid(
-            row=6, column=2, columnspan=6, sticky=('we', 'ne'))
+            row=6, column=2, columnspan=8, sticky=('we', 'ne'))
         #
         #
         # Настройки формата файла
@@ -104,12 +109,26 @@ class MainWindow:
         self.radiobutton_dpi_150.pack(fill='both')
         #
         #
+        # Фрейм с настройками выбора цветное или ч/б
+        self.labelframe_color = LabelFrame(master, text="Настройки цвета")
+        self.labelframe_color.grid(
+            row=7, column=6, columnspan=2, rowspan=3, sticky='wens')
+        self.color = IntVar()
+        self.color.set(0)
+        self.radiobutton_bw = Radiobutton(self.labelframe_color, text='Чёрно/белое',
+                                          variable=self.color, value=0)
+        self.radiobutton_color = Radiobutton(self.labelframe_color, text='Цветное',
+                                             variable=self.color, value=1)
+        self.radiobutton_bw.pack(fill='both')
+        self.radiobutton_color.pack(fill='both')
+        #
+        #
         # Фрейм с настройками качества сжатия JPEG
         self.labelframe_quality = LabelFrame(
             master, text="Настройка сжатия файла")
         self.labelframe_quality.grid(
-            row=7, column=6, columnspan=2, rowspan=3, sticky='nw ne')
-        self.scale_quality = Scale(self.labelframe_quality, label='Маленький                          Большой', from_=1, to=100,
+            row=7, column=8, columnspan=2, rowspan=3, sticky='nw ne')
+        self.scale_quality = Scale(self.labelframe_quality, label='Хуже                   Лучше', from_=1, to=100,
                                    resolution=1, orient="horizontal", state='active')
         self.scale_quality.set(100)
         self.scale_quality.pack(fill='both')
@@ -138,7 +157,8 @@ class MainWindow:
                                  command=lambda x=True: ConvertFile().process(
                                      input_file=self.list_files, output_file=self.filename,
                                      format_file=self.FORMAT[self.format_output_file.get(
-                                     )], dpi=self.SETTINGS_DPI[self.dpi.get()], optimize=self.optimize_image.get(),
+                                     )], dpi=self.SETTINGS_DPI[self.dpi.get()], color=self.SETTINGS_COLOR[self.color.get()],
+                                     optimize=self.optimize_image.get(),
                                      quality=self.scale_quality.get(), split_step=self.scale_split.get()),
                                  state='active', pady=5, padx=26)
         self.button_run.pack()
@@ -147,7 +167,7 @@ class MainWindow:
         # Progressbar
         self.pbar = ttk.Progressbar(
             master, orient='horizontal', mode='determinate', length=100, maximum=100)
-        self.pbar.grid(row=10, column=1, columnspan=7, sticky='wens')
+        self.pbar.grid(row=10, column=1, columnspan=9, sticky='wens')
         #
         #
         # Меню программы
@@ -161,8 +181,13 @@ class MainWindow:
         self.sub_menu2.add_command(
             label='О программе', command=self.show_about)
 
+    def frange(self, start, stop, step):
+        while start < stop:
+            yield start
+            start += step
+
     def change_state(self, event):
-        if self.optimize_image.get() == False:
+        if self.optimize_image.get() is False:
             self.scale_quality.config(state='disable')
         else:
             self.scale_quality.config(state='active')
@@ -175,7 +200,7 @@ class MainWindow:
 
     def update_progressbar(self, page):
         step = 100 / self.lenght_list_files
-        step_range = arange(0, 100, step)
+        step_range = list(self.frange(0, 100, step))
         self.pbar['value'] = step_range[page] + step
         root.update()
 
@@ -231,7 +256,8 @@ class ConvertFile:
         """
 
         Функция разделяет ПДФ на файлы согласно заданного диапазона.
-        Дипазон задается в страницах. Функция возвращает несколько файлов, по количеству диапазонов (имя генерируется по умолчанию).
+        Дипазон задается в страницах. Функция возвращает несколько файлов,
+        по количеству диапазонов (имя генерируется по умолчанию).
         \n input_file: имя файла, обязательный параметр, тип str.
         \n step: шаг диапазона в страницах, тип int.
 
@@ -254,7 +280,7 @@ class ConvertFile:
                 continue
             x += 1
 
-    def to_image(self, in_file, optimize, quality, dpi, format_file='JPEG'):
+    def to_image(self, in_file, optimize, quality, dpi, color, format_file='JPEG'):
         """
 
         Функция конвертирует в формат JPEG или PNG.
@@ -271,12 +297,12 @@ class ConvertFile:
         size = im.size
         new_size = (size[0] // 2, size[1] // 2)
         img_resize = im.resize(size=new_size, resample=1, reducing_gap=3.0)
-        img = img_resize.convert(mode='1')
+        img = img_resize.convert(mode=color)
         img.save(out_file, format_file, quality=quality, optimize=optimize,
                  dpi=(dpi, dpi), progressive=True)
         return out_file
 
-    def process(self, input_file, output_file, format_file, dpi, optimize, quality, split_step=0):
+    def process(self, input_file, output_file, format_file, dpi, color, optimize, quality, split_step=0):
         """
 
         Функция отвечает за запуск процесса конвертирования.
@@ -295,9 +321,10 @@ class ConvertFile:
             Thread(target=app.update_progressbar(page)).start()
             if format_file == '.pdf':
                 """ сначала конвертируем в формат JPEG """
-                output_jpg = self.to_image(i, optimize, quality, dpi, 'JPEG')
+                output_jpg = self.to_image(
+                    i, optimize, quality, dpi, color, 'JPEG')
                 """ JPEG добавляем в PDF-файл, выбираем параметры функции добавления основываясь на номере страницы """
-                if page == True:
+                if page == 0:
                     im = Image.open(output_jpg)
                     im.save(output_file, 'PDF', save_all=True)
                 elif page > 0:
@@ -305,20 +332,20 @@ class ConvertFile:
                     im.save(output_file, 'PDF', append=True)
                 remove(output_jpg)
             elif format_file == '.jpg':
-                self.to_image(i, optimize, quality, dpi, 'JPEG')
+                self.to_image(i, optimize, quality, dpi, color, 'JPEG')
             else:
                 pass
             page += 1
         if format_file == '.pdf' and split_step > 0:
             self.splitPdf(output_file, step=split_step)
         else:
-            MainWindow.show_error('Конвертирование невозможно!')
+            pass
 
 
 # main window
 if __name__ == "__main__":
     root = Tk()
-    root.geometry('722x410+140-140')
+    root.geometry('780x410+140-140')
     root.resizable(0, 0)
     # root.iconbitmap('./bender.ico')
     root.title('Конвертер изображений для ГИС ЖКХ')
